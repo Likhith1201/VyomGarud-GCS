@@ -1,0 +1,16 @@
+# Node modules (Frontend)
+node_modules/
+dist/
+.env
+
+# Python (Backend)
+__pycache__/
+*.pyc
+venv/
+env/
+instance/
+.pytest_cache/
+
+# General
+.DS_Store
+.vscode/

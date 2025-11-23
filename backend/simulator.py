@@ -40,7 +40,6 @@ while True:
     current_lon = int(lon + offset_lon)
     
     # 3. Simulate WAVY Altitude (Between 40m and 60m)
-    # This makes the graph look cool!
     base_alt = 50
     wavy_alt = base_alt + (math.sin(angle) * 10) 
 
