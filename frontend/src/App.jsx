@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import io from 'socket.io-client';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Plane, Activity, Map as MapIcon, Video, Battery, Wifi } from 'lucide-react';
@@ -16,11 +15,6 @@ let DefaultIcon = L.icon({
     iconAnchor: [12, 41]
 });
 L.Marker.prototype.options.icon = DefaultIcon;
-
-// Connect to the backend
-// FOR LOCAL DEMO: Use 'http://localhost:5000'
-// FOR REAL 4G DRONE: Change this to Cloud Server IP (e.g., 'http://15.206.xx.xx:5000')
-const socket = io('http://localhost:5000');
 
 function App() {
   const [connected, setConnected] = useState(false);
@@ -40,45 +34,55 @@ function App() {
   const [path, setPath] = useState([]);
 
   useEffect(() => {
-    socket.on('connect', () => {
-      console.log('Connected to Backend');
+    // --- NATIVE WEBSOCKET CONNECTION (FOR GO BACKEND) ---
+    // Connects to ws://localhost:5000
+    // For Production: Change 'localhost' to Cloud IP
+    const ws = new WebSocket('ws://localhost:5000');
+
+    ws.onopen = () => {
+      console.log('Connected to Go Backend');
       setConnected(true);
-    });
+    };
 
-    socket.on('disconnect', () => {
-      console.log('Disconnected from Backend');
+    ws.onclose = () => {
+      console.log('Disconnected');
       setConnected(false);
-    });
+    };
 
-    socket.on('telemetry_data', (data) => {
-      setTelemetry(prev => ({
-        ...prev,
-        ...data,
-        mode: 'FLYING'
-      }));
+    ws.onmessage = (event) => {
+      try {
+        // Parse the raw JSON coming from Go
+        const data = JSON.parse(event.data);
+        
+        setTelemetry(prev => ({
+          ...prev,
+          ...data
+        }));
 
-      // Update Path for map
-      if (data.lat && data.lon) {
-        setPath(prev => [...prev, [data.lat, data.lon]]);
+        // Update Path for map
+        if (data.lat && data.lon) {
+          setPath(prev => [...prev, [data.lat, data.lon]]);
+        }
+
+        // Update History for graphs (keep last 50 points)
+        setHistory(prev => {
+          const newPoint = {
+            time: new Date().toLocaleTimeString(),
+            alt: data.alt || 0,
+            speed: data.speed || 0
+          };
+          const newHistory = [...prev, newPoint];
+          if (newHistory.length > 50) newHistory.shift();
+          return newHistory;
+        });
+      } catch (err) {
+        console.error("Error parsing telemetry:", err);
       }
+    };
 
-      // Update History for graphs 
-      setHistory(prev => {
-        const newPoint = {
-          time: new Date().toLocaleTimeString(),
-          alt: data.alt || 0,
-          speed: data.speed || 0 // Assuming speed comes in telemetry
-        };
-        const newHistory = [...prev, newPoint];
-        if (newHistory.length > 50) newHistory.shift();
-        return newHistory;
-      });
-    });
-
+    // Cleanup on unmount
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('telemetry_data');
+      ws.close();
     };
   }, []);
 
@@ -91,7 +95,7 @@ function App() {
       {/* Sidebar */}
       <div className="sidebar">
         <div className="logo">
-          {/* Using a Plane icon */}
+          {/* Using a Plane icon, but styled for VyomGarud */}
           <Plane size={24} color="#2196F3" /> 
           <span style={{ letterSpacing: '1px' }}>VYOMGARUD</span>
         </div>
